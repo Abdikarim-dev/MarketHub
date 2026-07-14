@@ -198,7 +198,7 @@ export default function HomePage() {
               >
                 <div className="relative mb-3 aspect-square overflow-hidden rounded-xl bg-white">
                   {img ? (
-                    <Image src={img} alt={p.name} fill className="object-contain p-3" />
+                    <Image src={img} alt={p.name} fill className="object-cover" unoptimized />
                   ) : null}
                 </div>
                 <p className="line-clamp-1 text-sm font-semibold">{p.name}</p>
