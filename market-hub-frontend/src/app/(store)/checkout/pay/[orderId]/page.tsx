@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
@@ -26,23 +26,38 @@ const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 function PaymentForm({
   orderId,
   amount,
+  clientSecret,
 }: {
   orderId: number;
   amount: string;
+  clientSecret: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
   const router = useRouter();
   const clearCart = useCartStore((s) => s.clear);
   const [submitting, setSubmitting] = useState(false);
+  const [elementReady, setElementReady] = useState(false);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!stripe || !elements) return;
+    if (!stripe || !elements || !elementReady) {
+      toast.error("Payment form is still loading. Please wait a moment.");
+      return;
+    }
+
     setSubmitting(true);
     try {
+      // Required before confirmPayment when using Payment Element.
+      const { error: submitError } = await elements.submit();
+      if (submitError) {
+        toast.error(submitError.message || "Please check your card details.");
+        return;
+      }
+
       const result = await stripe.confirmPayment({
         elements,
+        clientSecret,
         redirect: "if_required",
         confirmParams: {
           return_url: `${window.location.origin}/orders/${orderId}?paid=1`,
@@ -60,7 +75,6 @@ function PaymentForm({
         return;
       }
 
-      // Backend verifies with Stripe — never trust the client alone.
       await paymentsApi.confirm(orderId, intent.id);
       clearCart();
       sessionStorage.removeItem(`mh_pi_${orderId}`);
@@ -73,11 +87,36 @@ function PaymentForm({
     }
   };
 
+  const canPay = Boolean(stripe && elements && elementReady && !submitting);
+
   return (
     <form onSubmit={onSubmit} className="space-y-5">
-      <PaymentElement />
-      <Button type="submit" className="w-full" disabled={!stripe || submitting}>
-        {submitting ? "Processing..." : `Pay ${formatCurrency(amount)}`}
+      {/* Keep Payment Element visible — hiding it with sr-only/display:none
+          prevents Stripe from treating it as mounted. */}
+      <PaymentElement
+        id="payment-element"
+        options={{ layout: "tabs" }}
+        onReady={() => setElementReady(true)}
+        onLoadError={(event) => {
+          toast.error(
+            event.error?.message ||
+              "Could not load the payment form. Refreshing…",
+          );
+          sessionStorage.removeItem(`mh_pi_${orderId}`);
+          window.location.reload();
+        }}
+      />
+      {!elementReady && (
+        <p className="text-center text-xs text-slate-500">
+          Loading secure payment form…
+        </p>
+      )}
+      <Button type="submit" className="w-full" disabled={!canPay}>
+        {submitting
+          ? "Processing..."
+          : !elementReady
+            ? "Preparing form..."
+            : `Pay ${formatCurrency(amount)}`}
       </Button>
       <p className="text-center text-xs text-slate-500">
         Use Stripe test card <strong>4242 4242 4242 4242</strong>, any future
@@ -92,6 +131,7 @@ export default function CheckoutPayPage() {
   const user = useAuthStore((s) => s.user);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
+  const [loadingIntent, setLoadingIntent] = useState(true);
 
   const order = useQuery({
     queryKey: ["order", orderId],
@@ -99,42 +139,54 @@ export default function CheckoutPayPage() {
     enabled: !!user && !!orderId,
   });
 
-  useEffect(() => {
-    if (!orderId) return;
-    const raw = sessionStorage.getItem(`mh_pi_${orderId}`);
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as { clientSecret: string };
-        if (parsed.clientSecret) {
-          setClientSecret(parsed.clientSecret);
-          return;
+  const createIntent = useCallback(async (id: string, forceNew = false) => {
+    setLoadingIntent(true);
+    setBootError(null);
+    try {
+      if (!forceNew) {
+        const raw = sessionStorage.getItem(`mh_pi_${id}`);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { clientSecret?: string };
+          if (parsed.clientSecret) {
+            setClientSecret(parsed.clientSecret);
+            return;
+          }
         }
-      } catch {
-        /* fall through and recreate */
+      } else {
+        sessionStorage.removeItem(`mh_pi_${id}`);
       }
+
+      const intent = await paymentsApi.createIntent(Number(id));
+      sessionStorage.setItem(
+        `mh_pi_${id}`,
+        JSON.stringify({
+          clientSecret: intent.client_secret,
+          paymentId: intent.payment.id,
+        }),
+      );
+      setClientSecret(intent.client_secret);
+    } catch (e) {
+      setBootError(getErrorMessage(e, "Unable to start payment"));
+      setClientSecret(null);
+    } finally {
+      setLoadingIntent(false);
     }
-    // Resume unpaid order: create / reuse a payment intent.
-    paymentsApi
-      .createIntent(Number(orderId))
-      .then((intent) => {
-        sessionStorage.setItem(
-          `mh_pi_${orderId}`,
-          JSON.stringify({
-            clientSecret: intent.client_secret,
-            paymentId: intent.payment.id,
-          }),
-        );
-        setClientSecret(intent.client_secret);
-      })
-      .catch((e) => setBootError(getErrorMessage(e, "Unable to start payment")));
-  }, [orderId]);
+  }, []);
+
+  useEffect(() => {
+    if (!orderId || !user) return;
+    void createIntent(orderId);
+  }, [orderId, user, createIntent]);
 
   const options = useMemo(
     () =>
       clientSecret
         ? {
             clientSecret,
-            appearance: { theme: "stripe" as const },
+            appearance: {
+              theme: "stripe" as const,
+              variables: { borderRadius: "12px" },
+            },
           }
         : undefined,
     [clientSecret],
@@ -163,14 +215,20 @@ export default function CheckoutPayPage() {
     return (
       <div className="container-mh space-y-4 py-16 text-center">
         <p className="text-rose-600">{bootError}</p>
-        <Link href="/checkout">
-          <Button variant="outline">Back to checkout</Button>
+        <Button
+          variant="outline"
+          onClick={() => orderId && void createIntent(orderId, true)}
+        >
+          Try again
+        </Button>
+        <Link href="/checkout" className="block">
+          <Button variant="ghost">Back to checkout</Button>
         </Link>
       </div>
     );
   }
 
-  if (order.isLoading || !clientSecret || !options) {
+  if (order.isLoading || loadingIntent || !clientSecret || !options) {
     return (
       <div className="container-mh max-w-lg space-y-4 py-10">
         <Skeleton className="h-8 w-48" />
@@ -206,16 +264,18 @@ export default function CheckoutPayPage() {
         <strong>{formatCurrency(order.data?.total_price ?? 0)}</strong>
       </p>
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-        <Elements stripe={stripePromise} options={options}>
+        {/* key forces a clean remount whenever the intent secret changes */}
+        <Elements key={clientSecret} stripe={stripePromise} options={options}>
           <PaymentForm
             orderId={Number(orderId)}
             amount={order.data?.total_price ?? "0"}
+            clientSecret={clientSecret}
           />
         </Elements>
       </div>
       <p className="mt-4 text-xs text-slate-500">
-        Stock is reserved while payment is pending. Cancel the order from your
-        order page if you do not want to pay.
+        Wait until the card form finishes loading, then pay. Stock stays reserved
+        while payment is pending.
       </p>
     </div>
   );
