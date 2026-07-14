@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MarketHub Frontend
 
-## Getting Started
+Next.js 15 App Router storefront + seller/admin dashboards for the MarketHub Django API.
 
-First, run the development server:
+## Setup
 
 ```bash
+cd market-hub-frontend
+npm install
+cp .env.example .env.local
+# set NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+App: http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` — Turbopack dev server
+- `npm run build` — production build
+- `npm start` — serve production build
+- `npm run lint` — ESLint
 
-## Learn More
+## Features
 
-To learn more about Next.js, take a look at the following resources:
+- JWT auth (login/register, refresh interceptor, role routing)
+- MegaMart-style storefront (hero, categories, product grid)
+- Cart + wishlist (Zustand, persisted)
+- Checkout → Django orders + payment intent
+- Order history + tracking timeline
+- Seller dashboard (products, inventory, charts)
+- Admin dashboard (categories, orders, analytics)
+- Dark mode toggle (next-themes)
+- TanStack Query caching
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Demo accounts (from backend seed)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Role     | Username  | Password         |
+|----------|-----------|------------------|
+| Admin    | admin     | AdminPass123     |
+| Seller   | seller    | SellerPass123    |
+| Customer | customer  | CustomerPass123  |
