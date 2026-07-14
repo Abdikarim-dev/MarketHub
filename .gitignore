@@ -1,0 +1,39 @@
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Env & secrets — never commit
+.env
+.env.local
+.env.*.local
+**/.env
+
+# Python
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.pytest_cache/
+**/htmlcov/
+**/.coverage
+**/*.sqlite3
+**/db.sqlite3
+**/logs/
+**/media/
+**/staticfiles/
+
+# Node
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+**/.turbo/
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# Docker / misc
+**/.agents/
+skills-lock.json
