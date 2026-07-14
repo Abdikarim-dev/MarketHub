@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/store/cart-store";
 import { useWishlistStore } from "@/store/wishlist-store";
-import { cn, formatCurrency, mediaUrl } from "@/lib/utils";
+import { cn, formatCurrency, productImageUrl } from "@/lib/utils";
 
 export function ProductCard({
   product,
@@ -21,7 +21,7 @@ export function ProductCard({
   const addItem = useCartStore((s) => s.addItem);
   const toggle = useWishlistStore((s) => s.toggle);
   const wished = useWishlistStore((s) => s.has(product.id));
-  const img = mediaUrl(product.image);
+  const img = productImageUrl(product);
   const price = Number(product.price);
   const compare = price * 1.25;
   const save = compare - price;
@@ -53,8 +53,9 @@ export function ProductCard({
             src={img}
             alt={product.name}
             fill
-            className="object-contain p-4 transition group-hover:scale-[1.03]"
+            className="object-cover transition group-hover:scale-[1.03]"
             sizes="(max-width:768px) 50vw, 20vw"
+            unoptimized
           />
         ) : (
           <div className="grid h-full place-items-center text-sm text-slate-400">

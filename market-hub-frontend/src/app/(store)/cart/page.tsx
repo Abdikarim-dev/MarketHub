@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCartStore } from "@/store/cart-store";
 import { Button } from "@/components/ui/button";
-import { formatCurrency, mediaUrl } from "@/lib/utils";
+import { formatCurrency, productImageUrl } from "@/lib/utils";
 
 export default function CartPage() {
   const items = useCartStore((s) => s.items);
@@ -28,7 +28,7 @@ export default function CartPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="space-y-4">
             {items.map(({ product, quantity }) => {
-              const img = mediaUrl(product.image);
+              const img = productImageUrl(product);
               return (
                 <div
                   key={product.id}

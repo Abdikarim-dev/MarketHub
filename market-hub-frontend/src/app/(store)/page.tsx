@@ -9,7 +9,7 @@ import { categoriesApi, productsApi } from "@/services/api";
 import { ProductCard } from "@/features/products/components/product-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { mediaUrl } from "@/lib/utils";
+import { productImageUrl } from "@/lib/utils";
 
 const HERO_SLIDES = [
   {
@@ -189,7 +189,7 @@ export default function HomePage() {
         </h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {(products.data?.results.slice(0, 4) ?? []).map((p) => {
-            const img = mediaUrl(p.image);
+            const img = productImageUrl(p);
             return (
               <Link
                 key={p.id}

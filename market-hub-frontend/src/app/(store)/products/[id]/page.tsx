@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCartStore } from "@/store/cart-store";
 import { useAuthStore } from "@/store/auth-store";
-import { formatCurrency, mediaUrl } from "@/lib/utils";
+import { formatCurrency, productImageUrl } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api";
 import { ProductCard } from "@/features/products/components/product-card";
 
@@ -21,6 +21,7 @@ export default function ProductDetailPage() {
   const addItem = useCartStore((s) => s.addItem);
   const user = useAuthStore((s) => s.user);
   const [qty, setQty] = useState(1);
+  const [activeImage, setActiveImage] = useState(0);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const qc = useQueryClient();
@@ -78,17 +79,52 @@ export default function ProductDetailPage() {
   }
 
   const p = product.data;
-  const img = mediaUrl(p.image);
+  const gallery =
+    p.images?.length
+      ? p.images.map((img) => img.url)
+      : [productImageUrl(p)].filter(Boolean) as string[];
+  const img = gallery[activeImage] ?? gallery[0] ?? null;
 
   return (
     <div className="container-mh py-8">
       <div className="grid gap-8 lg:grid-cols-2">
-        <div className="relative aspect-square overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
-          {img ? (
-            <Image src={img} alt={p.name} fill className="object-contain p-8" />
-          ) : (
-            <div className="grid h-full place-items-center text-slate-400">
-              No image
+        <div>
+          <div className="relative aspect-square overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
+            {img ? (
+              <Image
+                src={img}
+                alt={p.name}
+                fill
+                className="object-cover"
+                sizes="(max-width:1024px) 100vw, 50vw"
+                unoptimized
+              />
+            ) : (
+              <div className="grid h-full place-items-center text-slate-400">
+                No image
+              </div>
+            )}
+          </div>
+          {gallery.length > 1 && (
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              {gallery.map((url, i) => (
+                <button
+                  key={`${url}-${i}`}
+                  type="button"
+                  onClick={() => setActiveImage(i)}
+                  className={`relative aspect-square overflow-hidden rounded-2xl border-2 ${
+                    activeImage === i ? "border-blue-600" : "border-slate-200"
+                  }`}
+                >
+                  <Image
+                    src={url}
+                    alt={`${p.name} ${i + 1}`}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
+                </button>
+              ))}
             </div>
           )}
         </div>

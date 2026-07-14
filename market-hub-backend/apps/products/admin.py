@@ -1,7 +1,12 @@
 """Admin registration for products & categories."""
 from django.contrib import admin
 
-from .models import Category, Product
+from .models import Category, Product, ProductImage
+
+
+class ProductImageInline(admin.TabularInline):
+    model = ProductImage
+    extra = 3
 
 
 @admin.register(Category)
@@ -18,3 +23,4 @@ class ProductAdmin(admin.ModelAdmin):
     search_fields = ("name", "description", "seller__username")
     autocomplete_fields = ("seller", "category")
     list_select_related = ("seller", "category")
+    inlines = [ProductImageInline]

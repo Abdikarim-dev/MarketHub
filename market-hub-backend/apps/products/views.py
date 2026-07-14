@@ -53,6 +53,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = (
             Product.objects.select_related("seller", "category")
+            .prefetch_related("gallery")
             .all()
         )
         # Sellers viewing the "mine" flag see their own inactive products too.
@@ -64,7 +65,30 @@ class ProductViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        data = dict(serializer.validated_data)
+        gallery_urls = data.pop("gallery_urls", [])
         product = services.create_product(
-            seller=self.request.user, **serializer.validated_data
+            seller=self.request.user,
+            gallery_urls=gallery_urls,
+            **data,
         )
         serializer.instance = product
+
+    def perform_update(self, serializer):
+        gallery_urls = serializer.validated_data.pop("gallery_urls", None)
+        product = serializer.save()
+        if gallery_urls:
+            from .models import ProductImage
+
+            start = product.gallery.count()
+            ProductImage.objects.bulk_create(
+                [
+                    ProductImage(
+                        product=product,
+                        url=url,
+                        alt_text=f"{product.name} photo {start + i + 1}",
+                        sort_order=start + i,
+                    )
+                    for i, url in enumerate(gallery_urls)
+                ]
+            )

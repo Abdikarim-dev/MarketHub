@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/store/cart-store";
-import { formatCurrency, mediaUrl } from "@/lib/utils";
+import { formatCurrency, productImageUrl } from "@/lib/utils";
 
 export function CartDrawer({
   open,
@@ -39,7 +39,7 @@ export function CartDrawer({
         ) : (
           <div className="space-y-4">
             {items.map(({ product, quantity }) => {
-              const img = mediaUrl(product.image);
+              const img = productImageUrl(product);
               return (
                 <div
                   key={product.id}

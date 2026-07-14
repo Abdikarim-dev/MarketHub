@@ -37,6 +37,13 @@ export interface Category {
   updated_at: string;
 }
 
+export interface ProductImage {
+  id: number;
+  url: string;
+  alt_text: string;
+  sort_order: number;
+}
+
 export interface Product {
   id: number;
   seller: number;
@@ -48,6 +55,8 @@ export interface Product {
   price: string;
   stock: number;
   image: string | null;
+  primary_image?: string | null;
+  images?: ProductImage[];
   is_active: boolean;
   in_stock: boolean;
   created_at: string;

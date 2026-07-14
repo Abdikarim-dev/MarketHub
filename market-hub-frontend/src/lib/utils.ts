@@ -20,7 +20,20 @@ export function formatCurrency(
 
 export function mediaUrl(path?: string | null) {
   if (!path) return null;
-  if (path.startsWith("http")) return path;
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
   const api = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ?? "";
   return `${api}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+/** Prefer gallery / primary_image, fall back to legacy image field. */
+export function productImageUrl(product: {
+  primary_image?: string | null;
+  image?: string | null;
+  images?: { url: string }[];
+}) {
+  return (
+    mediaUrl(product.primary_image) ||
+    mediaUrl(product.images?.[0]?.url) ||
+    mediaUrl(product.image)
+  );
 }
