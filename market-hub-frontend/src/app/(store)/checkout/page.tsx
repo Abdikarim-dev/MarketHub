@@ -16,24 +16,28 @@ export default function CheckoutPage() {
   const user = useAuthStore((s) => s.user);
   const items = useCartStore((s) => s.items);
   const subtotal = useCartStore((s) => s.subtotal());
-  const clear = useCartStore((s) => s.clear);
 
   const checkout = useMutation({
     mutationFn: async () => {
       const order = await ordersApi.create(
         items.map((i) => ({ product: i.product.id, quantity: i.quantity })),
       );
-      try {
-        await paymentsApi.createIntent(order.id);
-      } catch {
-        // Payment intent is optional if Stripe isn't configured
+      // Payment intent is required — never skip this step.
+      const intent = await paymentsApi.createIntent(order.id);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(
+          `mh_pi_${order.id}`,
+          JSON.stringify({
+            clientSecret: intent.client_secret,
+            paymentId: intent.payment.id,
+          }),
+        );
       }
       return order;
     },
     onSuccess: (order) => {
-      clear();
-      toast.success("Order placed successfully");
-      router.push(`/orders/${order.id}?success=1`);
+      toast.message("Order reserved — complete payment to confirm");
+      router.push(`/checkout/pay/${order.id}`);
     },
     onError: (e) => toast.error(getErrorMessage(e, "Checkout failed")),
   });
@@ -92,19 +96,19 @@ export default function CheckoutPage() {
       </div>
       <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-6">
         <div className="flex justify-between text-sm">
-          <span>Total</span>
+          <span>Total due</span>
           <span className="text-xl font-bold">{formatCurrency(subtotal)}</span>
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          Stock is reserved when the order is created. Payment confirmation is
-          handled by Stripe webhooks on the backend.
+          You will pay securely with Stripe on the next screen. The order stays
+          unpaid / pending until Stripe confirms payment.
         </p>
         <Button
           className="mt-5 w-full"
           disabled={checkout.isPending}
           onClick={() => checkout.mutate()}
         >
-          {checkout.isPending ? "Placing order..." : "Place order"}
+          {checkout.isPending ? "Preparing payment..." : "Continue to payment"}
         </Button>
       </aside>
     </div>

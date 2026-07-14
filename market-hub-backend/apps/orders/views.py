@@ -45,7 +45,7 @@ class OrderViewSet(
 
     def get_queryset(self):
         base = (
-            Order.objects.select_related("customer")
+            Order.objects.select_related("customer", "payment")
             .prefetch_related("items__product")
         )
         user = self.request.user
@@ -85,6 +85,14 @@ class OrderViewSet(
         # Customers may only cancel their own orders.
         if user.is_customer and new_status != Order.Status.CANCELLED:
             raise PermissionDenied("Customers may only cancel their orders.")
+
+        # Unpaid orders cannot advance past PENDING (except cancel).
+        if new_status != Order.Status.CANCELLED:
+            payment = getattr(order, "payment", None)
+            if not payment or not payment.is_successful:
+                raise PermissionDenied(
+                    "This order has not been paid yet. Payment must succeed first."
+                )
 
         order = services.update_order_status(
             order=order, new_status=new_status, acting_user=user

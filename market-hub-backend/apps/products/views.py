@@ -1,4 +1,5 @@
 """Views for categories and products."""
+from django.db.models import Count
 from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -18,13 +19,15 @@ from . import services
 class CategoryViewSet(viewsets.ModelViewSet):
     """CRUD for categories. Read is public; writes are admin-only."""
 
-    queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created_at"]
     lookup_field = "pk"
+
+    def get_queryset(self):
+        return Category.objects.annotate(product_count=Count("products")).all()
 
 
 @extend_schema(tags=["Products"])

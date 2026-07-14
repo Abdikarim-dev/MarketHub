@@ -67,6 +67,14 @@ class PaymentServiceTests(TestCase):
         payment = Payment.objects.get(order=self.order)
         self.assertEqual(payment.status, Payment.Status.FAILED)
 
+    def test_confirm_payment_requires_succeeded_intent(self):
+        services.create_payment_intent(order=self.order, user=self.customer)
+        # In tests, mock intents can be confirmed via the testing shortcut.
+        payment = services.confirm_payment(order=self.order, user=self.customer)
+        self.assertEqual(payment.status, Payment.Status.SUCCESS)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.CONFIRMED)
+
 
 class PaymentApiTests(APITestCase):
     def setUp(self):

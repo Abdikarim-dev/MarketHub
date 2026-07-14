@@ -49,7 +49,11 @@ def create_payment_intent(*, order: Order, user):
     amount_minor = _to_minor_units(order.total_price)
     stripe_enabled = _configure_stripe()
 
-    if stripe_enabled:
+    # Always mock inside the test suite so tests never call the live Stripe API.
+    if getattr(settings, "TESTING", False):
+        intent_id = f"pi_mock_{order.pk}"
+        client_secret = f"{intent_id}_secret_mock"
+    elif stripe_enabled:
         intent = stripe.PaymentIntent.create(
             amount=amount_minor,
             currency=settings.DEFAULT_CURRENCY,
@@ -59,10 +63,9 @@ def create_payment_intent(*, order: Order, user):
         intent_id = intent["id"]
         client_secret = intent["client_secret"]
     else:
-        # Development fallback: no real Stripe call, deterministic fake intent.
-        logger.warning("STRIPE_SECRET_KEY not set; using a mock PaymentIntent.")
-        intent_id = f"pi_mock_{order.pk}"
-        client_secret = f"{intent_id}_secret_mock"
+        raise ServiceError(
+            "Stripe is not configured. Set STRIPE_SECRET_KEY before accepting payments."
+        )
 
     payment, _ = Payment.objects.update_or_create(
         order=order,
@@ -116,6 +119,64 @@ def mark_payment_failed(*, transaction_id: str):
         payment.status = Payment.Status.FAILED
         payment.save(update_fields=["status", "updated_at"])
     return payment
+
+
+@transaction.atomic
+def confirm_payment(*, order: Order, user, payment_intent_id: str | None = None):
+    """Verify payment with Stripe (source of truth) then mark the order paid.
+
+    Never trust the frontend alone — this retrieves the PaymentIntent from Stripe
+    and only confirms when status is ``succeeded``.
+    """
+    if order.customer_id != user.id and not user.is_admin:
+        raise ServiceError("You can only confirm payment for your own orders.")
+
+    if order.status == Order.Status.CANCELLED:
+        raise ServiceError("Cannot pay for a cancelled order.")
+
+    payment = getattr(order, "payment", None)
+    if not payment:
+        raise ServiceError("No payment has been started for this order.")
+
+    if payment.is_successful:
+        return payment
+
+    intent_id = payment_intent_id or payment.transaction_id
+    if not intent_id:
+        raise ServiceError("Missing payment intent id.")
+
+    # Test-suite mock intents.
+    if getattr(settings, "TESTING", False) and str(intent_id).startswith("pi_mock_"):
+        return mark_payment_succeeded(transaction_id=intent_id)
+
+    if not _configure_stripe():
+        raise ServiceError(
+            "Stripe is not configured on the server. Payment cannot be confirmed."
+        )
+
+    try:
+        intent = stripe.PaymentIntent.retrieve(intent_id)
+    except stripe.error.StripeError as exc:
+        raise ServiceError(f"Unable to verify payment with Stripe: {exc}") from exc
+
+    meta_order = intent.get("metadata", {}).get("order_id")
+    if meta_order and str(meta_order) != str(order.pk):
+        raise ServiceError("Payment intent does not belong to this order.")
+
+    status = intent.get("status")
+    if status == "succeeded":
+        if payment.transaction_id != intent_id:
+            payment.transaction_id = intent_id
+            payment.save(update_fields=["transaction_id", "updated_at"])
+        return mark_payment_succeeded(transaction_id=intent_id)
+
+    if status in {"canceled", "requires_payment_method"}:
+        mark_payment_failed(transaction_id=intent_id)
+        raise ServiceError(f"Payment was not completed (status: {status}).")
+
+    raise ServiceError(
+        f"Payment is still incomplete (status: {status}). Finish paying in the form."
+    )
 
 
 def construct_webhook_event(*, payload: bytes, sig_header: str):

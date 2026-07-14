@@ -13,6 +13,7 @@ from common.exceptions import ServiceError
 from .models import Payment
 from .permissions import CanViewPayment
 from .serializers import (
+    ConfirmPaymentSerializer,
     CreatePaymentIntentSerializer,
     PaymentIntentResponseSerializer,
     PaymentSerializer,
@@ -56,6 +57,22 @@ class PaymentViewSet(
             "payment": PaymentSerializer(result["payment"]).data,
         }
         return Response(payload, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        request=ConfirmPaymentSerializer,
+        responses=PaymentSerializer,
+    )
+    @action(detail=False, methods=["post"], url_path="confirm")
+    def confirm(self, request):
+        """Confirm payment only after Stripe reports the intent as succeeded."""
+        serializer = ConfirmPaymentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payment = services.confirm_payment(
+            order=serializer.validated_data["order"],
+            user=request.user,
+            payment_intent_id=serializer.validated_data.get("payment_intent_id") or None,
+        )
+        return Response(PaymentSerializer(payment).data, status=status.HTTP_200_OK)
 
 
 @extend_schema(tags=["Payments"], request=None, responses={200: None})

@@ -122,12 +122,28 @@ class OrderApiTests(APITestCase):
         response = self.client.patch(url, {"status": "SHIPPED"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_admin_can_advance_status(self):
+    def test_admin_cannot_advance_unpaid_order(self):
         order = services.create_order(
             customer=self.customer, items=[{"product": self.product.id, "quantity": 1}]
         )
         self.client.force_authenticate(self.admin)
         url = reverse("api:orders:order-set-status", args=[order.id])
         response = self.client.patch(url, {"status": "CONFIRMED"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_advance_paid_order(self):
+        from apps.payments import services as payment_services
+
+        order = services.create_order(
+            customer=self.customer, items=[{"product": self.product.id, "quantity": 1}]
+        )
+        payment_services.create_payment_intent(order=order, user=self.customer)
+        payment_services.confirm_payment(order=order, user=self.customer)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.CONFIRMED)
+
+        self.client.force_authenticate(self.admin)
+        url = reverse("api:orders:order-set-status", args=[order.id])
+        response = self.client.patch(url, {"status": "PROCESSING"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["status"], "CONFIRMED")
+        self.assertEqual(response.data["status"], "PROCESSING")

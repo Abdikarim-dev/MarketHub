@@ -73,6 +73,13 @@ export const paymentsApi = {
         { order },
       )
       .then((r) => r.data),
+  confirm: (order: number, payment_intent_id?: string) =>
+    api
+      .post<Payment>("/payments/confirm/", {
+        order,
+        payment_intent_id: payment_intent_id || "",
+      })
+      .then((r) => r.data),
   list: () => api.get<Paginated<Payment>>("/payments/").then((r) => r.data),
 };
 

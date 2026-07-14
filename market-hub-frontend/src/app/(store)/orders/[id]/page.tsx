@@ -73,9 +73,26 @@ export default function OrderDetailPage() {
 
   return (
     <div className="container-mh py-8">
-      {search.get("success") && (
+      {search.get("paid") && (
         <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          Order placed successfully.
+          Payment confirmed. Your order is now paid.
+        </div>
+      )}
+      {search.get("success") && !o.is_paid && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Order is reserved but <strong>not paid yet</strong>.{" "}
+          <Link href={`/checkout/pay/${o.id}`} className="underline">
+            Complete payment
+          </Link>{" "}
+          to confirm it.
+        </div>
+      )}
+      {!o.is_paid && o.status === "PENDING" && !search.get("success") && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Awaiting payment.{" "}
+          <Link href={`/checkout/pay/${o.id}`} className="font-semibold underline">
+            Pay now
+          </Link>
         </div>
       )}
 
